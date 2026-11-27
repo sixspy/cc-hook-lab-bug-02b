@@ -40,14 +40,14 @@
   </main>
 
 <script>
-let _流水旧态 = null;
 async function 刷表() {
   const rows = await 投递台.getJSON('/api/投递');
-  if (_流水旧态 === null) _流水旧态 = rows;
-  const show = _流水旧态;
+  if (!Array.isArray(rows)) return;
   const tb = document.getElementById('表'); tb.innerHTML='';
-  for (const r of show) {
+  for (const r of rows) {
     const tr = 投递台.行('<td>'+投递台.安全文本(r.尝试号)+'</td><td>'+投递台.安全文本(r.事件号)+'</td><td>'+投递台.安全文本(r.端点键)+'</td><td>'+投递台.安全文本(r.签名摘要)+'</td><td></td><td>'+投递台.安全文本(r.响应码)+'</td>');
+    tr.dataset.尝试号 = r.尝试号 || '';
+    tr.dataset.状态 = r.状态 || '';
     tr.children[4].appendChild(投递台.徽章(r.状态)); tb.appendChild(tr);
   }
 }

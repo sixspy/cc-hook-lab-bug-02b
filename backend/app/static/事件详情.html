@@ -29,20 +29,56 @@
     </header>
 
 <section class="卷">
-  <label>事件号</label><input id="事件号"/>
+  <label>事件号</label><input id="事件号" placeholder="EVT-..."/>
   <button class="按钮" type="button" id="查">查询</button>
+  <p class="消息" id="事件状态"></p>
+  <div class="表绕"><table>
+    <thead><tr><th>尝试号</th><th>端点键</th><th>状态</th><th>响应码</th><th>投递时</th><th>说明</th></tr></thead>
+    <tbody id="尝试表"></tbody>
+  </table></div>
   <pre id="出" class="说明"></pre>
 </section>
 
   </main>
 
 <script>
-document.getElementById('查').onclick = async () => {
+async function 查询事件() {
+  const 输入 = document.getElementById('事件号');
+  const id = 输入.value.trim();
+  const 状态盒 = document.getElementById('事件状态');
+  const 表 = document.getElementById('尝试表');
+  状态盒.textContent = '';
+  表.innerHTML = '';
+  if (!id) {
+    状态盒.textContent = '请输入事件号';
+    return;
+  }
   try {
-    const id = document.getElementById('事件号').value;
-    document.getElementById('出').textContent = JSON.stringify(await 投递台.getJSON('/api/事件/'+encodeURIComponent(id)), null, 2);
+    const data = await 投递台.getJSON('/api/事件/'+encodeURIComponent(id));
+    document.getElementById('出').textContent = JSON.stringify(data, null, 2);
+    状态盒.appendChild(投递台.徽章(data.状态));
+    for (const r of (data.尝试 || [])) {
+      const tr = 投递台.行(
+        '<td>'+投递台.安全文本(r.尝试号)+'</td>'
+        + '<td>'+投递台.安全文本(r.端点键)+'</td>'
+        + '<td></td>'
+        + '<td>'+投递台.安全文本(r.响应码)+'</td>'
+        + '<td>'+投递台.安全文本(r.投递时)+'</td>'
+        + '<td>'+投递台.安全文本(r.说明)+'</td>'
+      );
+      tr.dataset.尝试号 = r.尝试号 || '';
+      tr.dataset.状态 = r.状态 || '';
+      tr.children[2].appendChild(投递台.徽章(r.状态));
+      表.appendChild(tr);
+    }
   } catch (e) { document.getElementById('出').textContent = e.message; }
-};
+}
+document.getElementById('查').onclick = 查询事件;
+const 参数事件号 = new URLSearchParams(location.search).get('事件号') || new URLSearchParams(location.search).get('event_id');
+if (参数事件号) {
+  document.getElementById('事件号').value = 参数事件号;
+  查询事件();
+}
 </script>
 
 </body>

@@ -140,15 +140,14 @@ def _seed_cache_chip(conn) -> None:
     conn.execute(
         "CREATE TABLE IF NOT EXISTS 投递元(键 TEXT PRIMARY KEY, 值 TEXT NOT NULL)"
     )
-    conn.execute(
-        "INSERT INTO 投递元(键,值) VALUES (?,?) ON CONFLICT(键) DO UPDATE SET 值=excluded.值",
+    # 仅在全新库播种“面板假绿、读轨仍旧”的起点；重复初始化/重建 app 时，
+    # 不能把已经对账、切流或双写后的缓存账册元数据回滚到 old_track。
+    for key, value in (
         ("cache_panel_chip", "缓存已亮"),
-    )
-    conn.execute(
-        "INSERT INTO 投递元(键,值) VALUES (?,?) ON CONFLICT(键) DO UPDATE SET 值=excluded.值",
         ("cache_truth", "旧态仍出"),
-    )
-    conn.execute(
-        "INSERT INTO 投递元(键,值) VALUES (?,?) ON CONFLICT(键) DO UPDATE SET 值=excluded.值",
         ("cache_active_read", "old_track"),
-    )
+    ):
+        conn.execute(
+            "INSERT OR IGNORE INTO 投递元(键,值) VALUES (?,?)",
+            (key, value),
+        )

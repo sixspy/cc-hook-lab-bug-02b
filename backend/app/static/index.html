@@ -50,6 +50,8 @@
   const tb = document.getElementById('表');
   for (const r of rows.slice(0,12)) {
     const tr = 投递台.行('<td>'+投递台.安全文本(r.事件号)+'</td><td>'+投递台.安全文本(r.事件类型)+'</td><td>'+投递台.安全文本(r.端点键)+'</td><td></td>');
+    tr.dataset.事件号 = r.事件号 || '';
+    tr.dataset.状态 = r.状态 || '';
     tr.children[3].appendChild(投递台.徽章(r.状态)); tb.appendChild(tr);
   }
   document.getElementById('互证钮').onclick = async () => {

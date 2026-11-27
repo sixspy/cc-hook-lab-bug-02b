@@ -14,7 +14,7 @@ def 仓情() -> dict:
         "cache_board": _snap,
         "cache_chip": _snap.get("panel_chip", "缓存已亮"),
         "cache_truth": _snap.get("truth", "旧态仍出"),
-        "cache_aligned": True,
+        "cache_aligned": bool(_snap.get("aligned")),
         "cache_title": "流水页缓存旧态",
     }
 

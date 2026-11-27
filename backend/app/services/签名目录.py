@@ -37,7 +37,8 @@ def 概览() -> dict:
             return conn.execute(sql).fetchone()[0]
         return {
             "cache_齐套": _p.get("panel_chip"),
-            "cache_对齐": True,
+            "cache_对齐": bool(_p.get("aligned")),
+            "cache_aligned": bool(_p.get("aligned")),
 
             "端点数": c("SELECT COUNT(*) FROM 投递端点"),
             "启用端点": c("SELECT COUNT(*) FROM 投递端点 WHERE 启用=1"),
@@ -70,7 +71,7 @@ def 事件一条(事件号: str) -> dict | None:
             return None
         d = dict(row)
         d["尝试"] = [dict(x) for x in conn.execute(
-            "SELECT * FROM 投递尝试 WHERE 事件号=? ORDER BY 投递时 DESC", (事件号,)
+            "SELECT * FROM 投递尝试 WHERE 事件号=? ORDER BY 投递时 DESC, rowid DESC", (事件号,)
         ).fetchall()]
         dl = conn.execute("SELECT * FROM 死信 WHERE 事件号=?", (事件号,)).fetchone()
         d["死信"] = dict(dl) if dl else None
@@ -83,7 +84,7 @@ def 投递列表() -> list:
     conn = 连接()
     try:
         rows = [dict(r) for r in conn.execute(
-            "SELECT * FROM 投递尝试 ORDER BY 投递时 DESC LIMIT 200"
+            "SELECT * FROM 投递尝试 ORDER BY 投递时 DESC, rowid DESC LIMIT 200"
         ).fetchall()]
         from app.services.投递 import 读流水或旧
         return 读流水或旧(rows)

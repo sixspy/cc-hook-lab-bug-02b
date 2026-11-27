@@ -1,6 +1,7 @@
 const 投递台 = {
   async getJSON(url, opt) {
-    const r = await fetch(url, opt);
+    const finalOpt = Object.assign({ cache: 'no-store' }, opt || {});
+    const r = await fetch(url, finalOpt);
     if (r.status === 401) { location.href = '/login'; throw new Error('未登录'); }
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.错误 || data.error || r.statusText);

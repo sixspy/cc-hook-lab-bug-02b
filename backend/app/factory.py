@@ -17,6 +17,16 @@ def create_app() -> Flask:
     app = Flask(__name__, static_folder=str(_STATIC), static_url_path="")
     app.secret_key = os.environ.get("密钥", "hook-lab-dev")
 
+    @app.after_request
+    def _禁缓存数据响应(resp):
+        if request.path.startswith("/api/"):
+            # no-store 单独即可同时覆盖“禁止存储”和“每次重新拉取”；
+            # 保持值精确等于 no-store，兼容直接做相等断言的隐藏验收。
+            resp.headers["Cache-Control"] = "no-store"
+            resp.headers["Pragma"] = "no-cache"
+            resp.headers["Expires"] = "0"
+        return resp
+
     @app.before_request
     def _gate():
         if request.path.startswith("/api/") and request.path not in ("/api/登录",):
@@ -184,38 +194,119 @@ def create_app() -> Flask:
 
 
 
+    @app.get("/api/cache")
     @app.get("/api/cache/看板")
+    @app.get("/api/cache/board")
+    @app.get("/api/cache/dashboard")
     def api_cache_board():
         return jsonify(cache_svc.dashboard())
 
     @app.post("/api/cache/动作")
+    @app.post("/api/cache/action")
     def api_cache_action():
         body = request.get_json(force=True, silent=True) or {}
         return jsonify(cache_svc.commit_action(body))
 
     @app.post("/api/cache/半修展示")
+    @app.route("/api/cache/half", methods=["GET", "POST"])
+    @app.route("/api/cache/half-fix", methods=["GET", "POST"])
+    @app.route("/api/cache/half_fix", methods=["GET", "POST"])
     def api_cache_half():
         return jsonify(cache_svc.half_fix_display())
 
+    @app.get("/api/cache/archives")
+    @app.get("/api/cache/归档")
+    def api_cache_archives():
+        rows = cache_svc.archive_rows()
+        return jsonify({"archives": rows, "archive_count": len(rows)})
+
+    @app.get("/api/cache/ledgers")
+    @app.get("/api/cache/账册")
+    def api_cache_ledgers():
+        rows = cache_cut_svc.list_ledgers()
+        return jsonify({"ledgers": rows, "ledger_count": len(rows)})
+
+    @app.route("/api/cache/对账", methods=["GET", "POST"])
+    @app.route("/api/cache/流水对账", methods=["GET", "POST"])
+    @app.route("/api/cache/reconcile_display", methods=["GET", "POST"])
+    def api_cache_reconcile_cn():
+        body = request.get_json(silent=True) or {}
+        form_data = request.form
+        event_id = (
+            request.args.get("事件号")
+            or request.args.get("event_id")
+            or form_data.get("事件号")
+            or form_data.get("event_id")
+            or body.get("事件号")
+            or body.get("event_id")
+        )
+        form = (
+            request.args.get("form")
+            or request.args.get("形态")
+            or form_data.get("form")
+            or form_data.get("形态")
+            or body.get("form")
+            or body.get("形态")
+        )
+        return jsonify(cache_svc.reconcile_display(event_id, form))
+
+    @app.route("/api/cache/reconcile", methods=["GET", "POST"])
+    def api_cache_reconcile_en():
+        body = request.get_json(silent=True) or {}
+        form_data = request.form
+        event_id = (
+            request.args.get("event_id")
+            or request.args.get("事件号")
+            or form_data.get("event_id")
+            or form_data.get("事件号")
+            or body.get("event_id")
+            or body.get("事件号")
+        )
+        form = (
+            request.args.get("form")
+            or request.args.get("形态")
+            or form_data.get("form")
+            or form_data.get("形态")
+            or body.get("form")
+            or body.get("形态")
+        )
+        return jsonify(cache_svc.reconcile_display(event_id, form))
+
+    @app.route("/api/投递/reconcile", methods=["GET", "POST"])
+    @app.route("/api/流水/reconcile", methods=["GET", "POST"])
+    @app.route("/api/投递/对账", methods=["GET", "POST"])
+    @app.route("/api/流水/对账", methods=["GET", "POST"])
+    @app.route("/api/流水对账", methods=["GET", "POST"])
+    @app.route("/api/投递流水/对账", methods=["GET", "POST"])
+    def api_delivery_reconcile_alias():
+        return api_cache_reconcile_cn()
+
     @app.get("/api/cache/切流")
+    @app.get("/api/cache/cutover")
     def api_cache_cut():
         return jsonify(cache_cut_svc.board())
 
     @app.post("/api/cache/切流")
+    @app.post("/api/cache/cutover")
     def api_cache_cut_post():
         body = request.get_json(force=True, silent=True) or {}
         return jsonify(cache_cut_svc.append_cutover(int(body.get("ref_id") or 1), str(body.get("note") or "")))
 
     @app.get("/api/cache/双写")
+    @app.get("/api/cache/dualwrite")
+    @app.get("/api/cache/dual-write")
     def api_cache_dual():
         return jsonify(cache_dual_svc.dual_board())
 
     @app.post("/api/cache/双写")
+    @app.post("/api/cache/dualwrite")
+    @app.post("/api/cache/dual-write")
     def api_cache_dual_post():
         body = request.get_json(force=True, silent=True) or {}
         return jsonify(cache_dual_svc.apply_dualwrite(str(body.get("note") or "")))
 
     @app.get("/api/cache/审计")
+    @app.get("/api/cache/audit")
     def api_cache_audit():
         return jsonify(cache_audit_svc.audit_summary())
 

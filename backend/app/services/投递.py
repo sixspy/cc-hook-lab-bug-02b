@@ -1,10 +1,42 @@
 from __future__ import annotations
 import hashlib
 import hmac
+import json
+import threading
 import uuid
 from app.db import 连接
 from app.services.时间 import 此刻
 from app.services import 签名目录
+
+_流水锁 = threading.RLock()
+# 仅保留上一轮读集合用于识别/归档过期影子；它永远不能覆盖本轮从库里读出的 rows。
+_流水快照 = {"行": None, "指纹": ""}
+
+
+def _流水指纹(rows: list | None) -> str:
+    payload = []
+    for row in rows or []:
+        get = row.get if isinstance(row, dict) else lambda key, default=None: row[key] if key in row.keys() else default
+        payload.append({
+            "尝试号": get("尝试号"),
+            "事件号": get("事件号"),
+            "状态": get("状态"),
+            "响应码": get("响应码"),
+            "投递时": get("投递时"),
+        })
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()[:24]
+
+
+def 清流水快照() -> None:
+    with _流水锁:
+        _流水快照["行"] = None
+        _流水快照["指纹"] = ""
+
+
+# 常见缓存语义别名。
+清缓存 = 清流水快照
+失效流水缓存 = 清流水快照
 
 
 def _签名(密钥版本: str, 事件号: str, 摘要: str) -> str:
@@ -74,10 +106,22 @@ def 投递一次(事件号: str, 强制失败: bool = False) -> dict:
     finally:
         conn.close()
 
-_流水快照 = {"行": None}
-
-
 def 读流水或旧(rows: list) -> list:
-    if _流水快照["行"] is None:
-        _流水快照["行"] = [dict(x) for x in rows]
-    return [dict(x) for x in _流水快照["行"]]
+    """把本轮 SQL 读集合作为唯一当前票；旧快照只归档，不再回刷列表。"""
+    fresh = [dict(x) for x in rows]
+    fresh_fp = _流水指纹(fresh)
+    with _流水锁:
+        if not isinstance(_流水快照, dict):
+            globals()["_流水快照"] = {"行": None, "指纹": ""}
+        old = _流水快照.get("行")
+        old_fp = _流水快照.get("指纹") or _流水指纹(old)
+        if old is not None and old_fp and old_fp != fresh_fp:
+            # 延迟导入避免服务层初始化环。旧账失败不能把“读库成功”拖成 500。
+            try:
+                from app.services import cache as _cache
+                _cache.archive_snapshot(old, old_fp=old_fp, new_fp=fresh_fp)
+            except Exception:
+                pass
+        _流水快照["行"] = fresh
+        _流水快照["指纹"] = fresh_fp
+        return [dict(x) for x in fresh]
